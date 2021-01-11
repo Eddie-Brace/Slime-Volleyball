@@ -7,13 +7,15 @@
 #include <cstdlib>
 #include <SDL2/SDL.h>
 
-#define SPEED_X 5
-#define SPEED_Y 50
+#define SPEED_X 8
+#define SPEED_Y 40
 #define SLIME_RADIUS 75
+#define BALL_RADIUS 25
 
 using namespace std;
 void drawSlime( SDL_Renderer * renderer, int32_t centerX, int32_t centerY, int32_t radius );
 void drawBall( SDL_Renderer * renderer, int32_t centerX, int32_t centerY, int32_t radius );
+int detectCollision( struct movingObject * slime, struct movingObject * ball );
 
 struct movingObject {  int x;   int y;    int velX;  int velY; };
 
@@ -23,7 +25,8 @@ struct movingObject {  int x;   int y;    int velX;  int velY; };
  */
 int main(int argc, char** argv) {
     //start SDL
-    if( SDL_Init( SDL_INIT_VIDEO | SDL_INIT_TIMER ) != 0 ) {
+    if( SDL_Init( SDL_INIT_VIDEO | SDL_INIT_TIMER ) != 0 ) //mandatory error checking
+    {
         printf( "Error initializing SDL: %s", SDL_GetError() );
         return 1;
     }
@@ -47,7 +50,7 @@ int main(int argc, char** argv) {
         return 1;
     }
     
-    
+    start:
     //need structs for both slimes & ball
     struct movingObject slime1;
         slime1.x = 320;
@@ -61,9 +64,9 @@ int main(int argc, char** argv) {
         slime2.velY = 0;
     struct movingObject ball;
         ball.x = 320;
-        ball.y = 350;
+        ball.y = 250;
         ball.velX = 0;
-        ball.velY = 0; //change this
+        ball.velY = -5; //change this
 
         
     /***
@@ -71,24 +74,26 @@ int main(int argc, char** argv) {
      */
     while( 1 ) {
     
-        //draw blue sky background and grass playing field
+        //draw blue sky background and sand beach
         SDL_SetRenderDrawColor(renderer, 0, 230, 255, 255 );
         SDL_RenderClear( renderer );
     
-        SDL_Rect grass;
-            grass.x = 0;
-            grass.y = 550;
-            grass.w = 1200;
-            grass.h = 100;
-        SDL_SetRenderDrawColor( renderer, 0, 200, 30, 255 );
-        SDL_RenderFillRect( renderer, &grass );
+        SDL_Rect sand;
+            sand.x = 0;
+            sand.y = 550;
+            sand.w = 1200;
+            sand.h = 100;
+        SDL_SetRenderDrawColor( renderer, 250, 242, 195, 255 );
+        SDL_RenderFillRect( renderer, &sand );
         
         
-        //move slimes to new position
+        //move slimes and ball to new position
         slime1.x += slime1.velX;
         slime1.y -= slime1.velY;
         slime2.x += slime2.velX;
         slime2.y -= slime2.velY;
+        ball.x += ball.velX;
+        ball.y -= ball.velY;
         //prevent from going out of bounds
         if( slime1.y > 550 )
             slime1.y = 550;
@@ -117,10 +122,12 @@ int main(int argc, char** argv) {
             net.y = 420;
             net.w = 16;
             net.h = 130;
-        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255 );
+        SDL_SetRenderDrawColor( renderer, 255, 255, 255, 255 );
         SDL_RenderFillRect( renderer, &net );
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255 );
+        SDL_RenderDrawRect( renderer, &net );
     
-        drawBall( renderer, 320, 350, 25 );
+        drawBall( renderer, ball.x, ball.y, BALL_RADIUS );
     
     
         //print graphics to visible buffer
@@ -129,8 +136,14 @@ int main(int argc, char** argv) {
         //close program on window exit
         SDL_Event e;
         SDL_PollEvent( &e );
-        if( e.type == SDL_WINDOWEVENT && e.window.event == SDL_WINDOWEVENT_CLOSE )
-            exit(0);
+        if( e.type == SDL_WINDOWEVENT && e.window.event == SDL_WINDOWEVENT_CLOSE ) {
+            //clean up and end program
+            SDL_DestroyRenderer( renderer );
+            SDL_DestroyWindow( window );
+            SDL_Quit();
+    
+            return 0;
+        }
         //read keys to interpret players movement
         const Uint8 * keys = SDL_GetKeyboardState( NULL );
         
@@ -153,28 +166,48 @@ int main(int argc, char** argv) {
             slime2.velX = 0;
         
         
-        //take gravity and ground force into account
+        //take gravity and ground force into account for slimes
         if( slime1.velY >= 0 && slime1.y < 550 )
-            slime1.velY = -SPEED_Y / 6;
+            slime1.velY -= SPEED_Y / 5;
         else if( slime1.velY <= 0 && slime1.y >= 550 )
             slime1.velY = 0;
         
         if( slime2.velY >= 0 && slime2.y < 550 )
-            slime2.velY = -SPEED_Y / 6;
+            slime2.velY -= SPEED_Y / 5;
         else if( slime2.velY <= 0 && slime2.y >= 550 )
             slime2.velY = 0;
+        
+        //keep ball in-bounds and bounce off window edges
+        if( ball.y <= BALL_RADIUS ) {
+            ball.y = BALL_RADIUS;
+            ball.velY *= -1;
+        } 
+        /**code for point on ball->ground impact here
+         * also account for net placement
+         */
+        if( ball.y >= 550 - BALL_RADIUS ) {
+            while( 1 ) { goto start; }
+        }
+            
+        if( ball.x <= BALL_RADIUS ) {
+            ball.x = BALL_RADIUS;
+            ball.velX *= -1;
+        }
+        else if( ball.x >= 1200 - BALL_RADIUS ) {
+            ball.x = 1200 - BALL_RADIUS;
+            ball.velX *= -1;
+        }
+        
+        //detect for collisions and change ball's velocity
+        if( !detectCollision( &slime1, &ball ) )
+            detectCollision( &slime2, &ball );
+        
         
         //100th second delay between frames TODO is this too fast? not reading key inputs?
         SDL_Delay( 10 );
   
     }
-    
-    //clean up and end program
-    SDL_DestroyRenderer( renderer );
-    SDL_DestroyWindow( window );
-    SDL_Quit();
-    
-    return 0;
+   
     
 }
 
@@ -196,7 +229,7 @@ void drawSlime( SDL_Renderer * renderer, int32_t centerX, int32_t centerY, int32
    int32_t ty = 1;
    int32_t error = (tx - diameter);
 
-   while (x >= y) {
+   while ( x >= y ) {
       //implements midpoint circle algorithm
       SDL_RenderDrawPoint(renderer, centerX + x, centerY - y);
       SDL_RenderDrawLine( renderer, centerX + x, centerY - y, centerX - x, centerY - y );
@@ -228,7 +261,7 @@ void drawSlime( SDL_Renderer * renderer, int32_t centerX, int32_t centerY, int32
 /**
  * drawSlime(...), except for a ball
  */
-void drawBall(SDL_Renderer * renderer, int32_t centerX, int32_t centerY, int32_t radius) {
+void drawBall( SDL_Renderer * renderer, int32_t centerX, int32_t centerY, int32_t radius ) {
     
     
     const int32_t diameter = (radius * 2);
@@ -273,3 +306,34 @@ void drawBall(SDL_Renderer * renderer, int32_t centerX, int32_t centerY, int32_t
     
 }
 
+
+/**
+ * checks for ball-on-slime collision and adjust ball coords. if found
+ * @param slime
+ * @param ball
+ * @return 1 if collision processed, 0 if no collision
+ */
+int detectCollision( struct movingObject * slime, struct movingObject * ball ) {
+    
+    int distX = slime->x - ball->x;
+    int distY = slime->y - ball->y;
+    int distance = (int)sqrt( (distX * distX) + (distY * distY) );
+    
+    //if there is no collision, return without modifying ball pos.
+    if( distance > BALL_RADIUS + SLIME_RADIUS )
+        return 0;
+        
+    /**TODO: optimize ball redirection*/
+    //puts( "about to print angles n shit" );
+    //if there is a collision, move ball and return
+    long double newVelocity = sqrt( (( slime->velY + ball->velY ) * ( slime->velY + ball->velY )) + (( slime->velX + ball->velX ) * ( slime->velX + ball->velX )) );
+    //printf( "New Velocity: %Lf\n", newVelocity );
+    long double theta = asin( ( slime->velY + ball->velY ) / newVelocity ); //use inverse tan to get angle in radians
+    //printf( "theta: %Lf\n", theta );
+    
+    ball->velY = (int)( newVelocity * sin( theta ) ) * -1;
+    ball->velX = (int)( newVelocity * cos( theta ) );
+    
+    return 1;
+    
+}
