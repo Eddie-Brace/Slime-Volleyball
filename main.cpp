@@ -7,18 +7,21 @@
 #include <cstdlib>
 #include <SDL2/SDL.h>
 
-#define SPEED_X 8
-#define SPEED_Y 40
+#define WINDOW_WIDTH 1300
+#define SLIME_WALK_SPEED 11
+#define SLIME_JUMP_SPEED 40
 #define SLIME_RADIUS 75
 #define BALL_RADIUS 25
+#define MAX_BALL_SPEED_X 13
+#define MAX_BALL_SPEED_Y 10
 
 using namespace std;
 void drawSlime( SDL_Renderer * renderer, int32_t centerX, int32_t centerY, int32_t radius );
 void drawBall( SDL_Renderer * renderer, int32_t centerX, int32_t centerY, int32_t radius );
 int detectCollision( struct movingObject * slime, struct movingObject * ball );
+void exitProgram( int sig_id );
 
 struct movingObject {  int x;   int y;    int velX;  int velY; };
-
 
 /*
  * this runs the game; currently no params
@@ -31,7 +34,7 @@ int main(int argc, char** argv) {
         return 1;
     }
     //create window
-    SDL_Window * window = SDL_CreateWindow( "Slime Volleyball", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 1200, 650, 0 );
+    SDL_Window * window = SDL_CreateWindow( "Slime Volleyball", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, WINDOW_WIDTH, 650, 0 );
     if( !window ) //mandatory error checking
     {
         printf( "Error creating window: %s", SDL_GetError() );
@@ -53,20 +56,21 @@ int main(int argc, char** argv) {
     start:
     //need structs for both slimes & ball
     struct movingObject slime1;
-        slime1.x = 320;
+        slime1.x = WINDOW_WIDTH / 4;
         slime1.y = 550;
         slime1.velX = 0;
         slime1.velY = 0;
     struct movingObject slime2;
-        slime2.x = 880;
+        slime2.x = WINDOW_WIDTH * .75;
         slime2.y = 550;
         slime2.velX = 0;
         slime2.velY = 0;
     struct movingObject ball;
-        ball.x = 320;
-        ball.y = 250;
+        ball.x = WINDOW_WIDTH / 4;
+        ball.y = 350;
         ball.velX = 0;
-        ball.velY = -5; //change this
+        ball.velY = -4; //change this
+    int gravity = 0;
 
         
     /***
@@ -81,7 +85,7 @@ int main(int argc, char** argv) {
         SDL_Rect sand;
             sand.x = 0;
             sand.y = 550;
-            sand.w = 1200;
+            sand.w = WINDOW_WIDTH;
             sand.h = 100;
         SDL_SetRenderDrawColor( renderer, 250, 242, 195, 255 );
         SDL_RenderFillRect( renderer, &sand );
@@ -94,7 +98,7 @@ int main(int argc, char** argv) {
         slime2.y -= slime2.velY;
         ball.x += ball.velX;
         ball.y -= ball.velY;
-        //prevent from going out of bounds
+        //prevent slimes from going out of bounds
         if( slime1.y > 550 )
             slime1.y = 550;
         if( slime2.y > 550 )
@@ -102,13 +106,13 @@ int main(int argc, char** argv) {
         
         if( slime1.x < SLIME_RADIUS )
             slime1.x = SLIME_RADIUS - 1;
-        else if( slime1.x > 592 - SLIME_RADIUS)
-            slime1.x = 592 - SLIME_RADIUS;
+        else if( slime1.x > (WINDOW_WIDTH / 2) - 8 - SLIME_RADIUS)
+            slime1.x = (WINDOW_WIDTH / 2) - 8 - SLIME_RADIUS;
         
-        if( slime2.x > 1200 - SLIME_RADIUS )
-            slime2.x = 1200 - SLIME_RADIUS;
-        else if( slime2.x < 608 + SLIME_RADIUS )
-            slime2.x = 608 + SLIME_RADIUS - 1;
+        if( slime2.x > WINDOW_WIDTH - SLIME_RADIUS )
+            slime2.x = WINDOW_WIDTH - SLIME_RADIUS;
+        else if( slime2.x < (WINDOW_WIDTH / 2) + 8 + SLIME_RADIUS )
+            slime2.x = (WINDOW_WIDTH / 2) + 8 + SLIME_RADIUS - 1;
     
         
         //draw slimes, net, & ball
@@ -118,8 +122,8 @@ int main(int argc, char** argv) {
         drawSlime( renderer, slime2.x, slime2.y, SLIME_RADIUS );
     
         SDL_Rect net;
-            net.x = 592;
-            net.y = 420;
+            net.x = (WINDOW_WIDTH / 2) - 8;
+            net.y = 420; //DUDE
             net.w = 16;
             net.h = 130;
         SDL_SetRenderDrawColor( renderer, 255, 255, 255, 255 );
@@ -136,7 +140,7 @@ int main(int argc, char** argv) {
         //close program on window exit
         SDL_Event e;
         SDL_PollEvent( &e );
-        if( e.type == SDL_WINDOWEVENT && e.window.event == SDL_WINDOWEVENT_CLOSE ) {
+        if( e.type == SDL_QUIT || e.type == SDL_WINDOWEVENT && e.window.event == SDL_WINDOWEVENT_CLOSE ) {
             //clean up and end program
             SDL_DestroyRenderer( renderer );
             SDL_DestroyWindow( window );
@@ -144,36 +148,42 @@ int main(int argc, char** argv) {
     
             return 0;
         }
+        /**code for point on ball->ground impact here
+         */
+        if( ball.y >= 550 - BALL_RADIUS ) {
+            goto start;
+        }
+        
         //read keys to interpret players movement
         const Uint8 * keys = SDL_GetKeyboardState( NULL );
         
         if( keys[SDL_SCANCODE_W] && slime1.y == 550)
-            slime1.velY = SPEED_Y;
+            slime1.velY = SLIME_JUMP_SPEED;
         if( keys[SDL_SCANCODE_A] && !keys[SDL_SCANCODE_D] )
-            slime1.velX = -SPEED_X;
+            slime1.velX = -SLIME_WALK_SPEED;
         else if( keys[SDL_SCANCODE_D] && !keys[SDL_SCANCODE_A] )
-            slime1.velX = SPEED_X;
+            slime1.velX = SLIME_WALK_SPEED;
         else if( !keys[SDL_SCANCODE_D] && !keys[SDL_SCANCODE_A] )
             slime1.velX = 0;
             
         if( keys[SDL_SCANCODE_U] && slime2.y == 550 )
-            slime2.velY = SPEED_Y;
+            slime2.velY = SLIME_JUMP_SPEED;
         if( keys[SDL_SCANCODE_H] && !keys[SDL_SCANCODE_K] )
-            slime2.velX = -SPEED_X;
+            slime2.velX = -SLIME_WALK_SPEED;
         else if( keys[SDL_SCANCODE_K] && !keys[SDL_SCANCODE_H] )
-            slime2.velX = SPEED_X;
+            slime2.velX = SLIME_WALK_SPEED;
         else if( !keys[SDL_SCANCODE_K] && !keys[SDL_SCANCODE_H] )
             slime2.velX = 0;
         
         
         //take gravity and ground force into account for slimes
         if( slime1.velY >= 0 && slime1.y < 550 )
-            slime1.velY -= SPEED_Y / 5;
+            slime1.velY -= SLIME_JUMP_SPEED / 5;
         else if( slime1.velY <= 0 && slime1.y >= 550 )
             slime1.velY = 0;
         
         if( slime2.velY >= 0 && slime2.y < 550 )
-            slime2.velY -= SPEED_Y / 5;
+            slime2.velY -= SLIME_JUMP_SPEED / 5;
         else if( slime2.velY <= 0 && slime2.y >= 550 )
             slime2.velY = 0;
         
@@ -182,28 +192,49 @@ int main(int argc, char** argv) {
             ball.y = BALL_RADIUS;
             ball.velY *= -1;
         } 
-        /**code for point on ball->ground impact here
-         * also account for net placement
-         */
-        if( ball.y >= 550 - BALL_RADIUS ) {
-            while( 1 ) { goto start; }
-        }
-            
         if( ball.x <= BALL_RADIUS ) {
             ball.x = BALL_RADIUS;
             ball.velX *= -1;
         }
-        else if( ball.x >= 1200 - BALL_RADIUS ) {
-            ball.x = 1200 - BALL_RADIUS;
+        else if( ball.x >= WINDOW_WIDTH - BALL_RADIUS ) {
+            ball.x = WINDOW_WIDTH - BALL_RADIUS;
             ball.velX *= -1;
         }
+        //GRAVITY: decrements ball velY every 5 ticks
+        if( gravity > 3 ) {
+            ball.velY -= 1; 
+            gravity = 0;
+        }
+         else
+             gravity++;
         
-        //detect for collisions and change ball's velocity
-        if( !detectCollision( &slime1, &ball ) )
+       /**detect for collisions and change ball's velocity***/
+        if( !detectCollision( &slime1, &ball ) ) //collision w/ slimes
             detectCollision( &slime2, &ball );
         
+        //detect for ball impact on net
+        if( ball.x <= 608 + BALL_RADIUS && ball.x >= 592 - BALL_RADIUS ) {
+            //ball on top
+            if( ball.velY < 0 && ball.y + BALL_RADIUS >= 420 && ball.y + BALL_RADIUS <= 430 )
+                ball.velY *= -1;
+            //ball hits side
+            else if( ball.y + BALL_RADIUS > 420 )
+                ball.velX *= -1;
+        }
         
-        //100th second delay between frames TODO is this too fast? not reading key inputs?
+        //make ball adhere to max speed
+        if( ball.velX > MAX_BALL_SPEED_X ) 
+            ball.velX = MAX_BALL_SPEED_X;
+        else if( ball.velX < -MAX_BALL_SPEED_X )
+            ball.velX = -MAX_BALL_SPEED_X;
+        
+        if( ball.velY > MAX_BALL_SPEED_Y )
+            ball.velY = MAX_BALL_SPEED_Y;
+        else if( ball.velY < -MAX_BALL_SPEED_Y )
+            ball.velY = -MAX_BALL_SPEED_Y;
+        
+        
+        //100th second delay between frames TODO is this too fast?
         SDL_Delay( 10 );
   
     }
@@ -308,7 +339,7 @@ void drawBall( SDL_Renderer * renderer, int32_t centerX, int32_t centerY, int32_
 
 
 /**
- * checks for ball-on-slime collision and adjust ball coords. if found
+ * checks for ball-on-slime collision and adjust ball velocity if found
  * @param slime
  * @param ball
  * @return 1 if collision processed, 0 if no collision
@@ -319,20 +350,21 @@ int detectCollision( struct movingObject * slime, struct movingObject * ball ) {
     int distY = slime->y - ball->y;
     int distance = (int)sqrt( (distX * distX) + (distY * distY) );
     
+    int velDiffX = slime->velX - ball->velX;
+    int velDiffY = slime->velY - ball->velY;
+    
     //if there is no collision, return without modifying ball pos.
     if( distance > BALL_RADIUS + SLIME_RADIUS )
         return 0;
-        
-    /**TODO: optimize ball redirection*/
-    //puts( "about to print angles n shit" );
-    //if there is a collision, move ball and return
-    long double newVelocity = sqrt( (( slime->velY + ball->velY ) * ( slime->velY + ball->velY )) + (( slime->velX + ball->velX ) * ( slime->velX + ball->velX )) );
-    //printf( "New Velocity: %Lf\n", newVelocity );
-    long double theta = asin( ( slime->velY + ball->velY ) / newVelocity ); //use inverse tan to get angle in radians
-    //printf( "theta: %Lf\n", theta );
     
-    ball->velY = (int)( newVelocity * sin( theta ) ) * -1;
-    ball->velX = (int)( newVelocity * cos( theta ) );
+    int enigma = ( distX * velDiffX + distY * velDiffY ) / distance;
+    if( enigma != 0 ) {
+        
+        ball->velX += slime->velX - ( 2 * distX * enigma / distance );
+        ball->velY += slime->velY - ( 2 * distY * enigma / distance );
+        ball->velY *= -1;
+        
+    }
     
     return 1;
     
