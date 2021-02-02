@@ -19,9 +19,13 @@
 
 using namespace std;
 void drawSlime( SDL_Renderer * renderer, int32_t centerX, int32_t centerY, int32_t radius );
-void drawBall( SDL_Renderer * renderer, int32_t centerX, int32_t centerY, int32_t radius );
+void drawBall( SDL_Renderer * renderer, int32_t centerX, int32_t centerY, int32_t radius, SDL_Color edgeColor, SDL_Color fillColor );
 int detectCollision( struct movingObject * slime, struct movingObject * ball );
 void pointScored( SDL_Renderer * renderer, int slimeNum, TTF_Font * font );
+void victoryAchieved( SDL_Renderer * renderer, int slimeNum, TTF_Font * font );
+
+int slime1Score = 0;
+int slime2Score = 0;
 
 struct movingObject {  int x;   int y;    int velX;  int velY; };
 
@@ -141,7 +145,36 @@ int main(int argc, char** argv) {
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255 );
         SDL_RenderDrawRect( renderer, &net );
     
-        drawBall( renderer, ball.x, ball.y, BALL_RADIUS );
+        SDL_Color edgeColor = { 0, 0, 0, 255 };
+        SDL_Color fillColor = { 245, 245, 245, 255 };
+        drawBall( renderer, ball.x, ball.y, BALL_RADIUS, edgeColor, fillColor );
+        
+        /**
+         * draw scoreboard & check for victory conditions
+         * give victory message & end game if applicable
+         */
+        SDL_Color fillColor1 = { 255, 0, 0, 255 };
+        SDL_Color emptyFill = { 255, 255, 0, 255 };
+        for( int i = 1; i <= slime1Score; i++ )
+            drawBall( renderer, i * 50, 30, 20, edgeColor, fillColor1 );
+        for( int j = slime1Score + 1; j <= 7; j++ )
+            drawBall( renderer, j * 50, 30, 20, edgeColor, emptyFill );
+        
+        SDL_Color fillColor2 = { 0, 0, 255, 255 };
+        for( int i = 1; i <= slime2Score; i++ )
+            drawBall( renderer, WINDOW_WIDTH - i * 50, 30, 20, edgeColor, fillColor2 );
+        for( int j = slime2Score + 1; j <= 7; j++ )
+            drawBall( renderer, WINDOW_WIDTH - j * 50, 30, 20, edgeColor, emptyFill );
+        
+        int gameOver = 0;
+        if( slime1Score == 7 ) {
+            victoryAchieved( renderer, 1, font );
+            gameOver = 1;
+        }
+        if( slime2Score == 7 ) {
+            victoryAchieved( renderer, 2, font );
+            gameOver = 1;
+        }
     
     
         //print graphics to visible buffer
@@ -150,8 +183,8 @@ int main(int argc, char** argv) {
         //close program on window exit or OS 'quit' signal
         SDL_Event e;
         SDL_PollEvent( &e );
-        if( e.type == SDL_QUIT ) {
-            //clean up and end program
+        if( e.type == SDL_QUIT || gameOver ) {
+            //clean up and end program; need to make this its own function/object at some point
             TTF_CloseFont( font );
             SDL_DestroyRenderer( renderer );
             SDL_DestroyWindow( window );
@@ -165,10 +198,12 @@ int main(int argc, char** argv) {
             if( ball.x <= WINDOW_WIDTH / 2 - 8 ) {
                 pointScored( renderer, 2, font );
                 ballSpawnX = WINDOW_WIDTH * .75;
+                slime2Score++;
             }
             else {
                 pointScored( renderer, 1, font );
                 ballSpawnX = WINDOW_WIDTH / 4;
+                slime1Score++;
             }
             goto start;
         }
@@ -311,10 +346,10 @@ void drawSlime( SDL_Renderer * renderer, int32_t centerX, int32_t centerY, int32
 /**
  * drawSlime(...), except for a ball
  */
-void drawBall( SDL_Renderer * renderer, int32_t centerX, int32_t centerY, int32_t radius ) {
+void drawBall( SDL_Renderer * renderer, int32_t centerX, int32_t centerY, int32_t radius, SDL_Color edgeColor, SDL_Color fillColor ) {
     
     
-    const int32_t diameter = (radius * 2);
+   const int32_t diameter = (radius * 2);
    int32_t x = (radius - 1);
    int32_t y = 0;
    int32_t tx = 1;
@@ -323,7 +358,7 @@ void drawBall( SDL_Renderer * renderer, int32_t centerX, int32_t centerY, int32_
     
    while( x >= y ) {
        
-      SDL_SetRenderDrawColor( renderer, 0, 0, 0, 255 );
+      SDL_SetRenderDrawColor( renderer, edgeColor.r, edgeColor.g, edgeColor.b, edgeColor.a );
       SDL_RenderDrawPoint(renderer, centerX + x, centerY - y);
       SDL_RenderDrawPoint(renderer, centerX + x, centerY + y);
       SDL_RenderDrawPoint(renderer, centerX - x, centerY - y);
@@ -333,7 +368,7 @@ void drawBall( SDL_Renderer * renderer, int32_t centerX, int32_t centerY, int32_
       SDL_RenderDrawPoint(renderer, centerX - y, centerY - x);
       SDL_RenderDrawPoint(renderer, centerX - y, centerY + x);
       
-      SDL_SetRenderDrawColor( renderer, 245, 245, 245, 255 );
+      SDL_SetRenderDrawColor( renderer, fillColor.r, fillColor.g, fillColor.b, fillColor.a );
       SDL_RenderDrawLine( renderer, centerX + x - 1, centerY - y + 1, centerX - x + 1, centerY - y + 1 );
       SDL_RenderDrawLine( renderer, centerX + x - 1, centerY + y - 1, centerX - x + 1, centerY + y - 1 );
       SDL_RenderDrawLine( renderer, centerX + y - 1, centerY - x + 1, centerX - y + 1, centerY - x + 1);
@@ -391,8 +426,10 @@ int detectCollision( struct movingObject * slime, struct movingObject * ball ) {
 
 
 /**
- * gives message upon point score; update score & check for victory condition
+ * gives message upon point score
+ * @param renderer because words need to be drawn to canvas
  * @param slimeNum slime 1 or 2, whichever scored on its opponent
+ * @param font to write in
  */
 void pointScored( SDL_Renderer * renderer, int slimeNum, TTF_Font * font ) {
     
@@ -456,5 +493,37 @@ void pointScored( SDL_Renderer * renderer, int slimeNum, TTF_Font * font ) {
     SDL_DestroyTexture( goodMessage );
     SDL_FreeSurface( badMessageSurface );
     SDL_DestroyTexture( badMessage );
+    
+}
+
+
+/**
+ * prints victory message & ends game
+ * @param renderer
+ * @param slimeNum the winner
+ * @param font
+ */
+void victoryAchieved( SDL_Renderer * renderer, int slimeNum, TTF_Font * font ) {
+    
+    SDL_Color textColor = {0, 0, 0};
+    
+    SDL_Surface * messageSurface;
+    SDL_Texture * message;
+    SDL_Rect rect;
+    
+    if( slimeNum == 1 )
+        messageSurface = TTF_RenderText_Solid( font, "Slime 1 is victorious! You suck, blue!", textColor );
+    else
+        messageSurface = TTF_RenderText_Solid( font, "Slime 2 wins! Sad red will cry in corner.", textColor );
+        
+    message = SDL_CreateTextureFromSurface( renderer, messageSurface );
+    rect.x = (WINDOW_WIDTH / 2) - 200;
+    rect.y = 575;
+    rect.w = 400;
+    rect.h = 50;
+    
+    SDL_RenderCopy( renderer, message, NULL, &rect );
+    SDL_RenderPresent( renderer );
+    SDL_Delay( 2000 );
     
 }
