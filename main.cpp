@@ -6,8 +6,10 @@
 
 #include <cstdlib>
 #include <SDL2/SDL.h>
+#include <SDL2_ttf/SDL_ttf.h>
 
-#define WINDOW_WIDTH 1300
+
+#define WINDOW_WIDTH 1400
 #define SLIME_WALK_SPEED 11
 #define SLIME_JUMP_SPEED 40
 #define SLIME_RADIUS 75
@@ -19,7 +21,7 @@ using namespace std;
 void drawSlime( SDL_Renderer * renderer, int32_t centerX, int32_t centerY, int32_t radius );
 void drawBall( SDL_Renderer * renderer, int32_t centerX, int32_t centerY, int32_t radius );
 int detectCollision( struct movingObject * slime, struct movingObject * ball );
-void exitProgram( int sig_id );
+void pointScored( SDL_Renderer * renderer, int slimeNum, TTF_Font * font );
 
 struct movingObject {  int x;   int y;    int velX;  int velY; };
 
@@ -28,30 +30,38 @@ struct movingObject {  int x;   int y;    int velX;  int velY; };
  */
 int main(int argc, char** argv) {
     //start SDL
-    if( SDL_Init( SDL_INIT_VIDEO | SDL_INIT_TIMER ) != 0 ) //mandatory error checking
-    {
+    if( SDL_Init( SDL_INIT_VIDEO | SDL_INIT_TIMER ) != 0 ) {//mandatory error checking
         printf( "Error initializing SDL: %s", SDL_GetError() );
         return 1;
     }
+    //initialize fonts
+    if( TTF_Init() != 0 ) {
+        printf( "Error initializing SDL/TTF: %s", SDL_GetError() );
+        return 1;
+    }
+    TTF_Font * font = TTF_OpenFont( "Gameplay.ttf", 50 );
+    
     //create window
     SDL_Window * window = SDL_CreateWindow( "Slime Volleyball", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, WINDOW_WIDTH, 650, 0 );
-    if( !window ) //mandatory error checking
-    {
+    if( !window ) { //mandatory error checking
+    
         printf( "Error creating window: %s", SDL_GetError() );
         SDL_Quit();
         return 1;
     }
-    
+
     //create graphics renderer
     Uint32 render_flags = SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC;
     SDL_Renderer * renderer = SDL_CreateRenderer( window, -1, render_flags );
-    if( !renderer ) //mandatory error checking
-    {
+    if( !renderer ) { //mandatory error checking
+    
         printf( "Error creating renderer: %s", SDL_GetError() );
         SDL_DestroyWindow( window );
         SDL_Quit();
         return 1;
     }
+    
+    int ballSpawnX = WINDOW_WIDTH / 4;
     
     start:
     //need structs for both slimes & ball
@@ -66,10 +76,10 @@ int main(int argc, char** argv) {
         slime2.velX = 0;
         slime2.velY = 0;
     struct movingObject ball;
-        ball.x = WINDOW_WIDTH / 4;
+        ball.x = ballSpawnX;
         ball.y = 350;
         ball.velX = 0;
-        ball.velY = -4; //change this
+        ball.velY = -4;
     int gravity = 0;
 
         
@@ -137,11 +147,12 @@ int main(int argc, char** argv) {
         //print graphics to visible buffer
         SDL_RenderPresent( renderer );
     
-        //close program on window exit
+        //close program on window exit or OS 'quit' signal
         SDL_Event e;
         SDL_PollEvent( &e );
-        if( e.type == SDL_QUIT || e.type == SDL_WINDOWEVENT && e.window.event == SDL_WINDOWEVENT_CLOSE ) {
+        if( e.type == SDL_QUIT ) {
             //clean up and end program
+            TTF_CloseFont( font );
             SDL_DestroyRenderer( renderer );
             SDL_DestroyWindow( window );
             SDL_Quit();
@@ -151,6 +162,14 @@ int main(int argc, char** argv) {
         /**code for point on ball->ground impact here
          */
         if( ball.y >= 550 - BALL_RADIUS ) {
+            if( ball.x <= WINDOW_WIDTH / 2 - 8 ) {
+                pointScored( renderer, 2, font );
+                ballSpawnX = WINDOW_WIDTH * .75;
+            }
+            else {
+                pointScored( renderer, 1, font );
+                ballSpawnX = WINDOW_WIDTH / 4;
+            }
             goto start;
         }
         
@@ -213,7 +232,7 @@ int main(int argc, char** argv) {
             detectCollision( &slime2, &ball );
         
         //detect for ball impact on net
-        if( ball.x <= 608 + BALL_RADIUS && ball.x >= 592 - BALL_RADIUS ) {
+        if( ball.x <= (WINDOW_WIDTH / 2) + 8 + BALL_RADIUS && ball.x >= (WINDOW_WIDTH / 2) - 8 - BALL_RADIUS ) {
             //ball on top
             if( ball.velY < 0 && ball.y + BALL_RADIUS >= 420 && ball.y + BALL_RADIUS <= 430 )
                 ball.velY *= -1;
@@ -367,5 +386,75 @@ int detectCollision( struct movingObject * slime, struct movingObject * ball ) {
     }
     
     return 1;
+    
+}
+
+
+/**
+ * gives message upon point score; update score & check for victory condition
+ * @param slimeNum slime 1 or 2, whichever scored on its opponent
+ */
+void pointScored( SDL_Renderer * renderer, int slimeNum, TTF_Font * font ) {
+    
+    SDL_Color textColor = {0, 0, 0};
+    
+    SDL_Surface * goodMessageSurface;
+    SDL_Texture * goodMessage;
+    SDL_Rect goodRect;
+    
+    SDL_Surface * badMessageSurface;
+    SDL_Texture * badMessage;
+    SDL_Rect badRect;
+    
+    if( slimeNum == 1 ) {
+        
+        goodMessageSurface = TTF_RenderText_Solid( font, "Slime One Scores! Hooray", textColor );
+        goodMessage = SDL_CreateTextureFromSurface( renderer, goodMessageSurface );
+        
+        goodRect.x = 100;
+        goodRect.y = 575;
+        goodRect.w = 300;
+        goodRect.h = 50;
+        
+        badMessageSurface = TTF_RenderText_Solid( font, "Cringe! Slime Two Falters", textColor );
+        badMessage = SDL_CreateTextureFromSurface( renderer, badMessageSurface );
+        
+        badRect.x = WINDOW_WIDTH - 400;
+        badRect.y = 575;
+        badRect.w = 300;
+        badRect.h = 50;
+        
+    }
+    
+    else {
+        
+        badMessageSurface = TTF_RenderText_Solid( font, "Yikes! Slime One is salty", textColor );
+        badMessage = SDL_CreateTextureFromSurface( renderer, badMessageSurface );
+        
+        badRect.x = 100;
+        badRect.y = 575;
+        badRect.w = 300;
+        badRect.h = 50;
+        
+        goodMessageSurface = TTF_RenderText_Solid( font, "Slime Two Scores! Based", textColor );
+        goodMessage = SDL_CreateTextureFromSurface( renderer, goodMessageSurface );
+        
+        goodRect.x = WINDOW_WIDTH - 400;
+        goodRect.y = 575;
+        goodRect.w = 300;
+        goodRect.h = 50;
+        
+    }
+    
+    SDL_RenderCopy( renderer, goodMessage, NULL, &goodRect );
+    SDL_RenderCopy( renderer, badMessage, NULL, &badRect );
+    SDL_RenderPresent( renderer );
+    
+    SDL_Delay( 1500 ); //needs to be short or else game won't close
+    
+    SDL_FreeSurface( goodMessageSurface );
+    SDL_DestroyTexture( goodMessage );
+    SDL_FreeSurface( badMessageSurface );
+    SDL_DestroyTexture( badMessage );
     
 }
