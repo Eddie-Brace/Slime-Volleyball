@@ -5,6 +5,7 @@
  */
 
 #include <cstdlib>
+#include <unistd.h>
 #include <SDL2/SDL.h>
 #include <SDL2_ttf/SDL_ttf.h>
 #include <sys/socket.h>
@@ -27,7 +28,7 @@ int detectCollision( struct movingObject * slime, struct movingObject * ball );
 void pointScored( SDL_Renderer * renderer, int slimeNum, TTF_Font * font );
 void victoryAchieved( SDL_Renderer * renderer, int slimeNum, TTF_Font * font );
 int listenToPort( int port );
-void receiveOpponentKeyState( Uint8 * oppKeys, int socket, Uint8 * myKeys );
+void receiveOpponentKeyState( Uint8 * oppKeys, int socket, const Uint8 * myKeys );
 
 int slime1Score = 0;
 int slime2Score = 0;
@@ -98,7 +99,7 @@ int main(int argc, char** argv) {
     
     /***start running server, wait for client connection
      */
-    char * portStr = "12504";
+    char * portStr = argv[1];
     int clientSocket, listenSocket, port = atoi( portStr );
     if( port < 1024 || port > 65535 ) {
         printf( "%s", "Invalid port number." );
@@ -240,7 +241,7 @@ int main(int argc, char** argv) {
         
         
         //receive opponent's keypress and store
-        const Uint8 * oppKeys;
+        Uint8 * oppKeys;
         const Uint8 * keys = SDL_GetKeyboardState( NULL );
         receiveOpponentKeyState( oppKeys, clientSocket, keys );
         //read keys to interpret players movement
@@ -606,7 +607,7 @@ int listenToPort( int port ) {
  * @param oppsKeys Unit8 pointer to store key state
  * @param socket on which communicating with 
  */
-void receiveOpponentKeyState( Uint8 * oppKeys, int socket, Uint8 * myKeys ) {
+void receiveOpponentKeyState( Uint8 * oppKeys, int socket, const Uint8 * myKeys ) {
     
     recv( socket, oppKeys, 8, 0 );
     send( socket, myKeys, 8, 0 );
