@@ -5,12 +5,13 @@
  */
 
 #include <cstdlib>
+#include <unistd.h>
 #include <SDL2/SDL.h>
 #include <SDL2_ttf/SDL_ttf.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <netinet/in.h>
-
+#include <netdb.h>
 
 #define WINDOW_WIDTH 1350
 #define SLIME_WALK_SPEED 11
@@ -26,8 +27,7 @@ void drawBall( SDL_Renderer * renderer, int32_t centerX, int32_t centerY, int32_
 int detectCollision( struct movingObject * slime, struct movingObject * ball );
 void pointScored( SDL_Renderer * renderer, int slimeNum, TTF_Font * font );
 void victoryAchieved( SDL_Renderer * renderer, int slimeNum, TTF_Font * font );
-int listenToPort( int port );
-void receiveOpponentKeyState( Uint8 * oppKeys, int socket, Uint8 * myKeys );
+void receiveOpponentKeyState( Uint8 * oppKeys, int socket, const Uint8 * myKeys );
 
 int slime1Score = 0;
 int slime2Score = 0;
@@ -96,25 +96,30 @@ int main(int argc, char** argv) {
     int gravity = 0;
 
     
-    /***start running server, wait for client connection
-     */
-    char * portStr = "12504";
-    int clientSocket, listenSocket, port = atoi( portStr );
-    if( port < 1024 || port > 65535 ) {
-        printf( "%s", "Invalid port number." );
+    /***start running client, attempt to connect to server
+    ***/
+    struct addrinfo hints;
+    struct addrinfo *res;
+    
+    memset( &hints, 0, sizeof(hints) );
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_PASSIVE;
+    
+    int status = getaddrinfo( argv[1], argv[2], &hints, &res);
+        
+    if( status != 0 ) {
+        printf( "%s", "Could not connect to server." );
         exit(1);
     }
     
-    //listens to specified port
-    listenSocket = listenToPort( port );
-    //create socket and connect client
-    struct sockaddr_in client;
-    socklen_t clientLen = sizeof( client );
-    if( (clientSocket = accept( listenSocket, (struct sockaddr *)&client, &clientLen )) == -1 ) {
-        printf( "%s", "Client connection is double plus ungood. Program ending." );
-        return -1;
-    }
     
+    int sock = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+    if( sock == -1 || connect(sock, res->ai_addr, res->ai_addrlen) == -1 ) {
+        printf( "%s", "Could not connect to server." );
+        exit(1);
+    }
+    printf( "%s\n", "successfully connected to server!" );
     
     /***
      * now that all the init work is complete, is time to animate and interact w/ user in loop until game end
@@ -214,7 +219,9 @@ int main(int argc, char** argv) {
         SDL_PollEvent( &e );
         if( e.type == SDL_QUIT || gameOver ) {
             //clean up and end program; need to make this its own function/object at some point
-            close( clientSocket );
+            close( sock );
+            freeaddrinfo( res );
+            
             TTF_CloseFont( font );
             SDL_DestroyRenderer( renderer );
             SDL_DestroyWindow( window );
@@ -240,9 +247,9 @@ int main(int argc, char** argv) {
         
         
         //receive opponent's keypress and store
-        const Uint8 * oppKeys;
+        Uint8 * oppKeys;
         const Uint8 * keys = SDL_GetKeyboardState( NULL );
-        receiveOpponentKeyState( oppKeys, clientSocket, keys );
+        receiveOpponentKeyState( oppKeys, sock, keys );
         //read keys to interpret players movement
         
         
@@ -574,41 +581,14 @@ void victoryAchieved( SDL_Renderer * renderer, int slimeNum, TTF_Font * font ) {
 }
 
 
-/****
- ** @param port # on which to listen
- * @return socket on which to listen for new connections
- */
-int listenToPort( int port ) {
-    
-    int optval = 1;
-    int listenfd = socket( AF_INET, SOCK_STREAM, 0 );
-    //create socket descriptor & avoid already in use error
-    if( listenfd < 0 || setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, (const void *)&optval, sizeof(int) ) < 0 )
-        return -1;
-    //do stuff to prepare port for acceptance of client connection
-    struct sockaddr_in serveraddr;
-    bzero( (char *) &serveraddr, sizeof(serveraddr) );
-    serveraddr.sin_family = AF_INET;
-    serveraddr.sin_addr.s_addr = htonl( INADDR_ANY );
-    serveraddr.sin_port = htons( (unsigned short) port );
-    if( bind( listenfd, (struct sockaddr *)&serveraddr, sizeof(serveraddr)) < 0 )
-        return -1;
-    if( listen( listenfd, 20) < 0 )
-        return -1;
-    
-    return listenfd;
-    
-}
-
-
 /**
  * 
  * @param oppsKeys Unit8 pointer to store key state
  * @param socket on which communicating with 
  */
-void receiveOpponentKeyState( Uint8 * oppKeys, int socket, Uint8 * myKeys ) {
+void receiveOpponentKeyState( Uint8 * oppKeys, int socket, const Uint8 * myKeys ) {
     
-    recv( socket, oppKeys, 8, 0 );
     send( socket, myKeys, 8, 0 );
+    recv( socket, oppKeys, 8, 0 );
     
 }
