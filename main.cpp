@@ -253,23 +253,23 @@ int main(int argc, char** argv) {
         //read keys to interpret players movement
         
         
-        if( keys[SDL_SCANCODE_W] && slime1.y == 550)
-            slime1.velY = SLIME_JUMP_SPEED;
-        if( keys[SDL_SCANCODE_A] && !keys[SDL_SCANCODE_D] )
-            slime1.velX = -SLIME_WALK_SPEED;
-        else if( keys[SDL_SCANCODE_D] && !keys[SDL_SCANCODE_A] )
-            slime1.velX = SLIME_WALK_SPEED;
-        else if( !keys[SDL_SCANCODE_D] && !keys[SDL_SCANCODE_A] )
-            slime1.velX = 0;
-            
-        if( oppKeys[SDL_SCANCODE_W] && slime2.y == 550)
+        if( keys[SDL_SCANCODE_W] && slime2.y == 550)
             slime2.velY = SLIME_JUMP_SPEED;
-        if( oppKeys[SDL_SCANCODE_A] && !oppKeys[SDL_SCANCODE_D] )
+        if( keys[SDL_SCANCODE_A] && !keys[SDL_SCANCODE_D] )
             slime2.velX = -SLIME_WALK_SPEED;
-        else if( oppKeys[SDL_SCANCODE_D] && !oppKeys[SDL_SCANCODE_A] )
+        else if( keys[SDL_SCANCODE_D] && !keys[SDL_SCANCODE_A] )
             slime2.velX = SLIME_WALK_SPEED;
-        else if( !oppKeys[SDL_SCANCODE_D] && !oppKeys[SDL_SCANCODE_A] )
+        else if( !keys[SDL_SCANCODE_D] && !keys[SDL_SCANCODE_A] )
             slime2.velX = 0;
+            
+        if( oppKeys[SDL_SCANCODE_W] && slime1.y == 550)
+            slime1.velY = SLIME_JUMP_SPEED;
+        if( oppKeys[SDL_SCANCODE_A] && !oppKeys[SDL_SCANCODE_D] )
+            slime1.velX = -SLIME_WALK_SPEED;
+        else if( oppKeys[SDL_SCANCODE_D] && !oppKeys[SDL_SCANCODE_A] )
+            slime1.velX = SLIME_WALK_SPEED;
+        else if( !oppKeys[SDL_SCANCODE_D] && !oppKeys[SDL_SCANCODE_A] )
+            slime1.velX = 0;
         
         
         //take gravity and ground force into account for slimes
