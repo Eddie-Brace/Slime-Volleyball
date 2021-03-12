@@ -609,7 +609,7 @@ int listenToPort( int port ) {
  */
 void receiveOpponentKeyState( Uint8 * oppKeys, int socket, const Uint8 * myKeys ) {
     
-    recv( socket, oppKeys, 8, 0 );
-    send( socket, myKeys, 8, 0 );
+    recv( socket, oppKeys, 1, 0 );
+    send( socket, myKeys, 1, 0 );
     
 }
